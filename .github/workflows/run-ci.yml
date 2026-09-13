@@ -1,6 +1,7 @@
 name: Trigger Inherited CI
 
 on:
+  workflow_call: 
   push:
     branches: [ main ]
   workflow_dispatch: # Allows you to trigger this manually from the Actions UI
