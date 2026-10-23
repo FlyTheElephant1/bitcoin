@@ -1026,6 +1026,20 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
         return false; // state filled in by CheckTxInputs
     }
 
+    // Extra historical pass only when the synthetic window is configured.
+    // Mainnet leaves HistoricalStartHeight at the unset sentinel, so the
+    // original path is unchanged and the call is never executed.
+    if (consensusParams.CoinbaseMaturityHistoricalStartHeight == std::numeric_limits<int>::max()) {
+        // mainnet / unset: fall through, nothing else
+    } else if (consensusParams.CoinbaseMaturityHistoricalStartHeight < consensusParams.CoinbaseMaturityLongStartHeight &&
+                                  !Consensus::CheckTxInputs(tx, state, m_view, block_height_next, ws.m_base_fees,
+                                  CheckTxInputsRules::OutputSizeLimit,
+                                  consensusParams.CoinbaseMaturityBeforeRolling(),
+                                  consensusParams.CoinbaseMaturityHistoricalStartHeight,
+                                  consensusParams.CoinbaseMaturityHistoricalReleaseHeight)) {
+        return false; // state filled in by CheckTxInputs
+    }
+
     if (m_pool.m_opts.minrelaymaturity) {
         auto max_coin_height = block_height_next - m_pool.m_opts.minrelaymaturity;
         static_assert(std::is_signed_v<decltype(max_coin_height)>, "Unsigned max_coin_height needs a range check");

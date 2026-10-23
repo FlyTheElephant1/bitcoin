@@ -156,7 +156,7 @@ BOOST_FIXTURE_TEST_CASE(mainnet_later_activation_preserves_history, BasicTesting
     BOOST_CHECK_EQUAL(params.chainstate_revalidation_deployments[0].start_height, 973440);
     BOOST_CHECK_EQUAL(params.chainstate_revalidation_deployments[0].stop_height, 979919);
 
-    auto check = [&](int coin_height, int spend_height) {
+    auto check = [&](int coin_height, int spend_height, int end_height = std::numeric_limits<int>::max()) {
         CCoinsView base;
         CCoinsViewCache view{&base};
         CMutableTransaction tx;
@@ -165,7 +165,7 @@ BOOST_FIXTURE_TEST_CASE(mainnet_later_activation_preserves_history, BasicTesting
         view.AddCoin(tx.vin[0].prevout, Coin{CTxOut{1, CScript{}}, coin_height, true}, false);
         TxValidationState state;
         CAmount fee;
-        return Consensus::CheckTxInputs(CTransaction{tx}, state, view, spend_height, fee, CheckTxInputsRules::None, params);
+        return Consensus::CheckTxInputs(CTransaction{tx}, state, view, spend_height, fee, CheckTxInputsRules::None, params, end_height);
     };
     // Lock-sticks: coins created in [973440, 979919) keep 6480 maturity forever.
     // 973440 + 6480 = 979920, so the first coin still matures exactly at the old release.
@@ -186,6 +186,11 @@ BOOST_FIXTURE_TEST_CASE(mainnet_later_activation_preserves_history, BasicTesting
     BOOST_CHECK(check(979919, 979919 + 25920));
     BOOST_CHECK(!check(979920, 979920 + 25919));
     BOOST_CHECK(check(979920, 979920 + 25920));
+    // After expiry: 979919 still needs the historical depth; a reward mined after expiry needs 100.
+    BOOST_CHECK(!check(979919, 979919 + 6479, /*end_height=*/979919));
+    BOOST_CHECK(check(979919, 979919 + 6480, /*end_height=*/979919));
+    BOOST_CHECK(!check(1025000, 1025099, /*end_height=*/1025000));
+    BOOST_CHECK(check(1025000, 1025100, /*end_height=*/1025000));
 
     CBlockIndex parent;
     parent.nTime = params.RdtsExpiryTime - 1;
@@ -196,7 +201,7 @@ BOOST_FIXTURE_TEST_CASE(mainnet_later_activation_preserves_history, BasicTesting
     reward.nHeight = 979919;
     BOOST_CHECK_EQUAL(Consensus::CoinbaseMaturityPolicy(params, &reward), 25920);
     parent.nTime = params.RdtsExpiryTime;
-    BOOST_CHECK_EQUAL(Consensus::CoinbaseMaturityPolicy(params, &reward), 100);
+    BOOST_CHECK_EQUAL(Consensus::CoinbaseMaturityPolicy(params, &reward), 6480);
 
     // Policy must match consensus for the historical window even after simulated RDTS expiry.
     CBlockIndex hist_coin;

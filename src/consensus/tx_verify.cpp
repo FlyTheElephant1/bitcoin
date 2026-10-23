@@ -205,7 +205,14 @@ int Consensus::CoinbaseMaturityPolicy(const Params& params, const CBlockIndex* c
 
     if (params.CoinbaseMaturityLongUntilRdts && coin_block->pprev &&
         coin_block->pprev->GetMedianTimePast() >= params.RdtsExpiryTime) {
-        return COINBASE_MATURITY;
+        // Default (mainnet / unset window): expiry returns 100.
+        // Synthetic window configured: keep the window depth for those heights.
+        if (params.CoinbaseMaturityHistoricalStartHeight == std::numeric_limits<int>::max() ||
+            coin_block->nHeight < params.CoinbaseMaturityHistoricalStartHeight ||
+	    coin_block->nHeight >= params.CoinbaseMaturityHistoricalReleaseHeight) {
+	        return COINBASE_MATURITY;
+	}
+        return params.CoinbaseMaturityBeforeRolling();
     }
     if (coin_block->nHeight < params.CoinbaseMaturityLongStartHeight) {
         return params.CoinbaseMaturityBeforeRolling();
